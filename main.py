@@ -54,4 +54,5 @@ if __name__ == '__main__':
             # Below is codes for visualization
             OPTION = 2
             visualize(sess, dcgan, FLAGS, OPTION)
+
     tf.app.run()

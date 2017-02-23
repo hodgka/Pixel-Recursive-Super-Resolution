@@ -1,0 +1,12 @@
+https://arxiv.org/pdf/1702.00783.pdf
+https://github.com/huangzehao/Super-Resolution.Benckmark
+https://github.com/Tetrachrome/subpixel
+https://github.com/ry/tensorflow-resnet
+https://github.com/anantzoid/Conditional-PixelCNN-decoder
+https://github.com/carpedm20/pixel-rnn-tensorflow
+https://arxiv.org/pdf/1606.05328.pdf
+https://github.com/tensorflow/magenta/blob/master/magenta/reviews/pixelrnn.md
+https://github.com/tensorflow/tensorflow/tree/master/tensorflow/contrib/slim
+https://github.com/ppwwyyxx/tensorpack/tree/master/examples/ResNet
+https://www.tensorflow.org/api_docs/python/
+https://github.com/aymericdamien/TensorFlow-Examples/blob/master/examples/2_BasicModels/nearest_neighbor.py

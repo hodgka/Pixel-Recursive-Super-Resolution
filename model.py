@@ -7,14 +7,20 @@ import numpy as np
 import tensorflow as tf
 
 
-class ConditionerNet:
+class ConditionalNet:
     # ResNet
     pass
 
-class PriorNet:
+class PixelCNNNet:
     # PixelCNN
     pass
 
+
+def log_sum(values, f):
+    return sum(map(f, values))
+
+def loss(A, B, y_star):
+    pass
 
 if __name__ == "__main__":
     from tensorflow.examples.tutorials.mnist import input_data
