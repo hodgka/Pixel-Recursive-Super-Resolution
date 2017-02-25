@@ -1,86 +1,61 @@
-import os
+#! /usr/bin/env python
+from __future__ import print_function
 
+import argparse
+import glob
+import logging
 import numpy as np
-import scipy.misc
+import os
 import tensorflow as tf
 
-from model import DCGAN
-from utils import pp, to_json, visualize
+from model import PixelResolutionNet
+from utils import *
 
-flags = tf.app.flags
-flags.DEFINE_integer("epoch", 25, "Epoch to train [25]")
-flags.DEFINE_float("learning_rate", 0.0002, "Learning rate of for adam [0.0002]")
-flags.DEFINE_float("beta1", 0.5, "Momentum term of adam [0.5]")
-flags.DEFINE_integer("train_size", np.inf, "The size of train images [np.inf]")
-flags.DEFINE_integer("batch_size", 64, "The size of batch images [64]")
-flags.DEFINE_integer("image_size", 128, "The size of image to use (will be center cropped) [108]")
-flags.DEFINE_string("dataset", "celebA", "The name of dataset [celebA, mnist, lsun]")
-flags.DEFINE_string("checkpoint_dir", "checkpoint", "Directory name to save the checkpoints [checkpoint]")
-flags.DEFINE_string("sample_dir", "samples", "Directory name to save the image samples [samples]")
-flags.DEFINE_boolean("is_train", False, "True for training, False for testing [False]")
-flags.DEFINE_boolean("is_crop", False, "True for training, False for testing [False]")
-flags.DEFINE_boolean("visualize", False, "True for visualizing, False for nothing [False]")
-FLAGS = flags.FLAGS
 
+def parse_arguments():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--data', type=str, default='', help="Path to dataset. Defaults to current directory")
+    parser.add_argument('--cond_f_map', type=int, default=32, help="Number of feature maps for the conditional network")
+    parser.add_argument('--prior_f_map', type=int, default=64, help="Number of feature maps for the prior network")
+    parser.add_argument('--iters', type=int, default=200000, help="Number of training epochs")
+    parser.add_argument('--lr', type=float, default=0.0004, help="Learning Rate")
+    parser.add_argument('--batch_size', type=int, default=32, help="Size of training batches")
+    parser.add_argument('--grad_clip', type=int, default=1, help="Gradient clipping")
+    parser.add_argument('--stride', type=int, default=1, help="Stride to use for convolutions")
+    # parser.add_argument('--opt', type=str, default="RMS", help="Optimizer to use for learning")
+    parser.add_argument('--summary_path', type=str, default='logs', help="Directory path to store log files")
+    return parser.parse_args()
+
+
+def train(data, config):
+    X = tf.placeholder(tf.float32, shape=[None, config.input_height, config.input_width, config.channels])
+    model = PixelResolutionNet(X, config)
+    if config.
+    trainer = tf.train.RMSPropOptimizer(decay=0.95, momentum=0.9, epsilon=1e-8)
+    gradients = Optimizer.compute_gradients(model.loss)
+
+    clipped_gradients = [(tf.clip_by_value(_[0], -config.grad_clip, config.grad_clip), _[1]) for _ in gradients]
+    optimizer = trainer.apply_gradients(clipped_gradients)
+
+    saver = tf.train.Saver(tf.trainable_variables())
+
+    with tf.Session as sess:
+        sess.run(tf.initialize_all_variables())
+        if os.path.exists(config.model_path):
+            saver.restore(sess, config.model_file)
+            print("Reusing model")
+
+        print("Starting training...")
+
+        counter = 0
+        for i in range(config.epochs):
+            for j in range(config.num_batches):
+                batch_X, counter = get_batch(data, counter, config.batch_size)
+                data_dict = {X: batch_X}
+                data_dict[model.h] = batch_y
+                _, cost = sess.run([optimizer, model.loss], feed_dict=data_dict)
+            print("Epoch: {}, Cost: {}".format(i, cost))
 
 if __name__ == '__main__':
-
-    with tf.Session() as sess:
-    sess.run(init)
-    step = 1
-    # Keep training until reach max iterations
-    while step * batch_size < training_iters:
-        batch_x, batch_y = mnist.train.next_batch(batch_size)
-        # Reshape data to get 28 seq of 28 elements
-        batch_x = batch_x.reshape((batch_size, n_steps, n_input))
-        # Run optimization op (backprop)
-        sess.run(optimizer, feed_dict={x: batch_x, y: batch_y})
-        if step % display_step == 0:
-            # Calculate batch accuracy
-            acc = sess.run(accuracy, feed_dict={x: batch_x, y: batch_y})
-            # Calculate batch loss
-            loss = sess.run(cost, feed_dict={x: batch_x, y: batch_y})
-            print("Iter " + str(step * batch_size) + ", Minibatch Loss= " +
-                  "{:.6f}".format(loss) + ", Training Accuracy= " +
-                  "{:.5f}".format(acc))
-        step += 1
-    print("Optimization Finished!")
-
-    # Calculate accuracy for 128 mnist test images
-    test_len = 128
-    test_data = mnist.test.images[:test_len].reshape((-1, n_steps, n_input))
-    test_label = mnist.test.labels[:test_len]
-    print("Testing Accuracy:",
-          sess.run(accuracy, feed_dict={x: test_data, y: test_label}))
-    pp.pprint(flags.FLAGS.__flags)
-
-    if not os.path.exists(FLAGS.checkpoint_dir):
-        os.makedirs(FLAGS.checkpoint_dir)
-    if not os.path.exists(FLAGS.sample_dir):
-        os.makedirs(FLAGS.sample_dir)
-
-    with tf.Session() as sess:
-        if FLAGS.dataset == 'mnist':
-            dcgan = DCGAN(sess, image_size=FLAGS.image_size, batch_size=FLAGS.batch_size, y_dim=10,
-                          dataset_name=FLAGS.dataset, is_crop=FLAGS.is_crop, checkpoint_dir=FLAGS.checkpoint_dir)
-        else:
-            dcgan = DCGAN(sess, image_size=FLAGS.image_size, batch_size=FLAGS.batch_size,
-                          dataset_name=FLAGS.dataset, is_crop=FLAGS.is_crop, checkpoint_dir=FLAGS.checkpoint_dir)
-
-        if FLAGS.is_train:
-            dcgan.train(FLAGS)
-        else:
-            dcgan.load(FLAGS.checkpoint_dir)
-
-        if FLAGS.visualize:
-            to_json("./web/js/layers.js", [dcgan.h0_w, dcgan.h0_b, dcgan.g_bn0],
-                    [dcgan.h1_w, dcgan.h1_b, dcgan.g_bn1],
-                    [dcgan.h2_w, dcgan.h2_b, dcgan.g_bn2],
-                    [dcgan.h3_w, dcgan.h3_b, dcgan.g_bn3],
-                    [dcgan.h4_w, dcgan.h4_b, None])
-
-            # Below is codes for visualization
-            OPTION = 2
-            visualize(sess, dcgan, FLAGS, OPTION)
-
-    tf.app.run()
+    args = parse_arguments()
+    data = load_images(args.data)
