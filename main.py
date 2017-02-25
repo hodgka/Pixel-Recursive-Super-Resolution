@@ -1,11 +1,11 @@
 import os
-import scipy.misc
+
 import numpy as np
+import scipy.misc
+import tensorflow as tf
 
 from model import DCGAN
-from utils import pp, visualize, to_json
-
-import tensorflow as tf
+from utils import pp, to_json, visualize
 
 flags = tf.app.flags
 flags.DEFINE_integer("epoch", 25, "Epoch to train [25]")
@@ -21,9 +21,37 @@ flags.DEFINE_boolean("is_train", False, "True for training, False for testing [F
 flags.DEFINE_boolean("is_crop", False, "True for training, False for testing [False]")
 flags.DEFINE_boolean("visualize", False, "True for visualizing, False for nothing [False]")
 FLAGS = flags.FLAGS
-    
+
 
 if __name__ == '__main__':
+
+    with tf.Session() as sess:
+    sess.run(init)
+    step = 1
+    # Keep training until reach max iterations
+    while step * batch_size < training_iters:
+        batch_x, batch_y = mnist.train.next_batch(batch_size)
+        # Reshape data to get 28 seq of 28 elements
+        batch_x = batch_x.reshape((batch_size, n_steps, n_input))
+        # Run optimization op (backprop)
+        sess.run(optimizer, feed_dict={x: batch_x, y: batch_y})
+        if step % display_step == 0:
+            # Calculate batch accuracy
+            acc = sess.run(accuracy, feed_dict={x: batch_x, y: batch_y})
+            # Calculate batch loss
+            loss = sess.run(cost, feed_dict={x: batch_x, y: batch_y})
+            print("Iter " + str(step * batch_size) + ", Minibatch Loss= " +
+                  "{:.6f}".format(loss) + ", Training Accuracy= " +
+                  "{:.5f}".format(acc))
+        step += 1
+    print("Optimization Finished!")
+
+    # Calculate accuracy for 128 mnist test images
+    test_len = 128
+    test_data = mnist.test.images[:test_len].reshape((-1, n_steps, n_input))
+    test_label = mnist.test.labels[:test_len]
+    print("Testing Accuracy:",
+          sess.run(accuracy, feed_dict={x: test_data, y: test_label}))
     pp.pprint(flags.FLAGS.__flags)
 
     if not os.path.exists(FLAGS.checkpoint_dir):
@@ -34,10 +62,10 @@ if __name__ == '__main__':
     with tf.Session() as sess:
         if FLAGS.dataset == 'mnist':
             dcgan = DCGAN(sess, image_size=FLAGS.image_size, batch_size=FLAGS.batch_size, y_dim=10,
-                    dataset_name=FLAGS.dataset, is_crop=FLAGS.is_crop, checkpoint_dir=FLAGS.checkpoint_dir)
+                          dataset_name=FLAGS.dataset, is_crop=FLAGS.is_crop, checkpoint_dir=FLAGS.checkpoint_dir)
         else:
             dcgan = DCGAN(sess, image_size=FLAGS.image_size, batch_size=FLAGS.batch_size,
-                    dataset_name=FLAGS.dataset, is_crop=FLAGS.is_crop, checkpoint_dir=FLAGS.checkpoint_dir)
+                          dataset_name=FLAGS.dataset, is_crop=FLAGS.is_crop, checkpoint_dir=FLAGS.checkpoint_dir)
 
         if FLAGS.is_train:
             dcgan.train(FLAGS)
@@ -46,10 +74,10 @@ if __name__ == '__main__':
 
         if FLAGS.visualize:
             to_json("./web/js/layers.js", [dcgan.h0_w, dcgan.h0_b, dcgan.g_bn0],
-                                          [dcgan.h1_w, dcgan.h1_b, dcgan.g_bn1],
-                                          [dcgan.h2_w, dcgan.h2_b, dcgan.g_bn2],
-                                          [dcgan.h3_w, dcgan.h3_b, dcgan.g_bn3],
-                                          [dcgan.h4_w, dcgan.h4_b, None])
+                    [dcgan.h1_w, dcgan.h1_b, dcgan.g_bn1],
+                    [dcgan.h2_w, dcgan.h2_b, dcgan.g_bn2],
+                    [dcgan.h3_w, dcgan.h3_b, dcgan.g_bn3],
+                    [dcgan.h4_w, dcgan.h4_b, None])
 
             # Below is codes for visualization
             OPTION = 2
