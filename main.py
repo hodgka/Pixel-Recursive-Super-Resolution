@@ -4,11 +4,12 @@ from __future__ import print_function
 import argparse
 import glob
 import logging
-import numpy as np
 import os
+
+import numpy as np
 import tensorflow as tf
 
-from model import PixelResolutionNet
+from model import PixelResolutionNet as Net
 from utils import *
 
 
@@ -17,6 +18,7 @@ def parse_arguments():
     parser.add_argument('--data', type=str, default='', help="Path to dataset. Defaults to current directory")
     parser.add_argument('--cond_f_map', type=int, default=32, help="Number of feature maps for the conditional network")
     parser.add_argument('--prior_f_map', type=int, default=64, help="Number of feature maps for the prior network")
+    parser.add_argument('--prior_layers', type=int, default=20, help="Number of layers to use in prior network")
     parser.add_argument('--iters', type=int, default=200000, help="Number of training epochs")
     parser.add_argument('--lr', type=float, default=0.0004, help="Learning Rate")
     parser.add_argument('--batch_size', type=int, default=32, help="Size of training batches")
@@ -32,7 +34,7 @@ def train(data, config):
     model = PixelResolutionNet(X, config)
     if config.
     trainer = tf.train.RMSPropOptimizer(decay=0.95, momentum=0.9, epsilon=1e-8)
-    gradients = Optimizer.compute_gradients(model.loss)
+    gradients = Optimizer.compute_gradients(Net.loss)
 
     clipped_gradients = [(tf.clip_by_value(_[0], -config.grad_clip, config.grad_clip), _[1]) for _ in gradients]
     optimizer = trainer.apply_gradients(clipped_gradients)
@@ -53,7 +55,7 @@ def train(data, config):
                 batch_X, counter = get_batch(data, counter, config.batch_size)
                 data_dict = {X: batch_X}
                 data_dict[model.h] = batch_y
-                _, cost = sess.run([optimizer, model.loss], feed_dict=data_dict)
+                _, cost = sess.run([optimizer, Net.loss], feed_dict=data_dict)
             print("Epoch: {}, Cost: {}".format(i, cost))
 
 if __name__ == '__main__':
