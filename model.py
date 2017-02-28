@@ -1,189 +1,236 @@
 from __future__ import absolute_import, print_function
 
+import os.path
+import time
+
 import numpy as np
+import scipy.misc
 import tensorflow as tf
 
 import layers
 from utils import one_hot
 
+FLAGS = tf.app.flags.FLAGS
 
+<<<<<<< HEAD
+
+class PixelResNet(object):
+=======
 class PixelResolutionNet(object):
 
     def __init__(self, input_images, config):
         self.X = input_images
-
+        self.output_shape = [config.batch_size, config.height, config.width, config.channels]
+        self.B = config.conditional_layers
         self.prior = prior_network(X, config)
         self.conditional = conditional_network(X, config)
+>>>>>>> 1c32f535593de7483faf377efd979be849233740
 
-    def loss(self):
-        one_hot_encoding = tf.matmul(one_hot(self.ground_truth),
-                                     tf.add(2 * self.conditional_output, self.prior_output))
+    def __init__(self, session, features, labels, channels=3):
+        self.session = session
+        self.features = features
+        self.labels = labels
+        self.channels = channels
 
-        AB_lse = tf.reduce_logsumexp(tf.add(self.prior_output, self.conditional_output))
-        A_lse = tf.reduce_logsumexp(self.conditional_output)
-        ABA_lse = tf.add(AB_lse, A_lse)
+<<<<<<< HEAD
+        self.X = input_images
+        self.output_shape = [config.batch_size, config.height, config.width, config.channels]
+        self.B = config.conditioning_layers
+        self.prior = self.prior_network()
+        self.conditioning = self.conditioning_network()
+        # self.prior = prior_network(X, config)
+        # self.conditioning = conditioning_network(X, config)
 
+    def conditioning_network(self):
+
+        # X is a placeholder until tf.session.run() gets called, so use that instead
+        # inputs = tf.placeholder(tf.float32, [None, height, width, channels])
+        block = self.X
+
+        for _ in range(self.B):
+            block = layers.residual_block(block, filter_shape=[3, 3, -1, 32], name="res_block_1")
+        block = layers.transposed_conv2d_layer(
+            block, filter_shape=[3, 3, -1, 32], output_shape=self.output_shape, name="trans_block_1")
+        for _ in range(self.B):
+            block = layers.residual_block(block, filter_shape=[3, 3, -1, 32], name="res_block_2")
+        block = layers.transposed_conv2d_layer(
+            block, filter_shape=[3, 3, -1, 32], output_shape=self.output_shape, name="trans_block_2")
+        for _ in range(self.B):
+=======
         return tf.sub(one_hot_encoding, ABA_lse)
 
-    def pixel_net(self):
+    def conditional_network(self, config):
 
+        inputs = tf.placeholder(tf.float32, [None, height, width, channels])
+        B = 6
+        block = inputs
+        for _ in range(B):
+            block = layers.residual_block(block, filter_shape=[3, 3, -1, 32], name="res_block_1")
+        block = layers.transposed_conv2d_layer(
+            block, filter_shape=[3, 3, -1, 32], output_shape=self.output_shape, name="trans_block_1")
+        for _ in range(B):
+            block = layers.residual_block(block, filter_shape=[3, 3, -1, 32], name="res_block_2")
+        block = layers.transposed_conv2d_layer(
+            block, filter_shape=[3, 3, -1, 32], output_shape=self.output_shape, name="trans_block_2")
+        for _ in range(B):
+>>>>>>> 1c32f535593de7483faf377efd979be849233740
+            block = layers.residual_block(block, filter_shape=[3, 3, -1, 32], name="res_block_3")
+        conv = layers.conv_layer(block, filter_shape=[1, 1, -1, 3 * 256])
+        return conv
 
-def conditional_network(X, config):
-    height, width, channels = config.height, config.width, config.channels
-    inputs = tf.placeholder(tf.float32, [None, height, width, channels])
-    resnet_config = {
-        "kernel": [3, 3],
-        "stide": [1, 1, 1, 1],
-        "f_maps": 32,
-    }
-    tranpose_config = {
-        "kernel": [3, 3],
-        "stride": [1, 2, 2, 1],
-        "f_maps": 32
-    }
-    layers = []
-    with tf.variable_scope("conv1"):
-        conv1 = conv_layer(X, [3, 3, 3, 32])
-    res_block_1 = resnet_block(X)
-    transposed_block_1 = transposed_convolution(res_block_1)
-    res_block_2 = resnet_block(transposed_block_1)
-    transposed_block_2 = transposed_convolution(res_block_2)
-    res_block_3 = resnet_block(transposed_block_2)
-    transposed_block_3 = transposed_convolution(res_block_3)
-    upscaling_conv = tf.conv2d(transposed_block_3,)
-    return upscaling_conv
+<<<<<<< HEAD
+    def prior_network(self, h=None):
+        """
+        PixelCNN implementation for the prior network
+        Inputs should already be preprocessed by this point
+        Args:
+            h - one hot latent conditioning vector
+        Returns:
+            prior network to be used as input to a softmax layer
+        """
 
+        masked_conv_1 = layers.conv_layer(self.X, [-1, 7, 7, 64], "maked_conv_1", mask='a')
 
-def conv_layer(X, filter_shape, stride):
-    output_channels = filter_shape[-1]
-    filter_ = weight_variable(filter_shape):
-    conv = tf.nn.conv2d(X, filter=filter_, strides=[1, stride, stride, 1, padding="SAME"])
-    mean, var = tf.nn.moments(conv, axes=[0, 1, 2])
-    beta = tf.Variable()
+        # rename to make chaining layers easy
+        v_stack_in = masked_conv_1
+        for i in range(self.prior_layers):
+=======
+    def prior_network(self, config, h=None):
+        """
+        PixelCNN implementation for the prior network
+        """
+        # inputs should already be processed by this point(normalized, whitened, etc..)
+        input_shape = self.output_shape
+        input_shape[0] = None
+        inputs = tf.placeholder(tf.float32, input_shape)
 
+        masked_conv_1 = layers.conv_layer(inputs, [-1, 7, 7, 64], "maked_conv_1", mask='a')
 
-def weight_variable(shape, name=None):
-    return tf.Variable(tf.truncated_normal(shape, stddev=0.1), name=name)
-
-
-def resnet_block(self, X, kernel=[3, 3], stride=1, f_maps=32):
-    conv_1 = conv2d(X, weights[""])
-    conv_2 = conv2d(conv1)
-    conv_3 = conv2d(conv_2)
-    conv_4 = conv2d(conv_3)
-    conv_5 = conv2d(conv_4)
-    conv_6 = conv2d(conv_5)
-    return
-
-
-def prior_network(X, config, h=None):
-    """
-    PixelCNN implementation for the prior network
-    """
-    height, width, channels = config.height, config.width, config.channels
-    # inputs should already be processed by this point(normalized, whitened, etc..)
-    inputs = tf.placeholder(tf.float32, [None, height, width, channels])
-    masked_conv_1 = masked_conv_layer(inputs, 7)
-
-    for i in range(config.prior_layers):
-        filter_size = 5
-        mask = "a"
-        i = str(i)
-        with tf.variable_scope("v_stack" + i):
-            v_stack = gated_cnn_layer(v_stack_in, [filter_size, filter_size, config.prior_f_map], mask=mask)
-    masked_conv2
-    masked_conv3
-
-
-class PixelCNN(object):
-    """
-    Prior Network
-    """
-
-    def __init__(self, X, conf, h=None):
-        self.X = X
-        self.X_norm = X
-        v_stack_in, h_stack_in = self.X_norm, self.X_norm
-
-        if conf.conditional is True:
-            if h is not None:
-                self.h = h
-            else:
-                self.h = tf.placeholder(tf.float32, shape=[None, conf.num_classes])
-        else:
-            self.h = None
-
-        for i in range(conf.layers):
-            filter_size = 3 if i > 0 else 7
-            mask = "b" if i > 0 else "a"
-            residual = True if i > 0 else False
+        for i in range(config.prior_layers):
+>>>>>>> 1c32f535593de7483faf377efd979be849233740
+            filter_shape = [-1, 5, 5, 64]
+            # type of convolution mask to use
+            mask = "a" if i == 0 else "b"
             i = str(i)
             with tf.variable_scope("v_stack" + i):
-                v_stack = GatedCNN([filter_size, filter_size, conf.f_map],
-                                   v_stack_in, mask=mask, conditional=self.h).output()
-                v_stack_in = v_stack
+                v_stack = layers.gated_cnn_layer(v_stack_in, filter_shape, mask=mask)
 
-            with tf.variable_scope("v_stack_1" + i):
-                v_stack_1 = GatedCNN([1, 1, conf.f_map], v_stack_in, gated=False, mask=mask).output()
+        masked_conv_2 = layers.conv_layer(v_stack, [1, 1, -1, 1024], "maked_conv_2", mask='a')
+        masked_conv_3 = layers.conv_layer(masked_conv_2, [1, 1, -1, 3 * 256], "maked_conv_3", mask='a')
+<<<<<<< HEAD
+        return masked_conv_3
 
-            with tf.variable_scope("h_stack" + i):
-                h_stack = GatedCNN([1, filter_size, conf.f_map], h_stack_in,
-                                   payload=v_stack_1, mask=mask, conditional=self.h).output()
+    def merge_networks(self):
+        """
+        merge the results of the prior and conditioning networks with a softmax layers
+        Args:
+            None
+        Returns:
+            Super-resolution image of inputs
+        """
+        prior = self.prior
+        conditioning = self.conditioning
+        p_yi = tf.nn.softmax(tf.add(prior, conditioning))
+        output_image = tf.reshape(p_yi, shape=[-1, 32, 32, 3])
+        return output_image
 
-            with tf.variable_scope("h_stack_1" + i):
-                h_stack_1 = GatedCNN([1, 1, conf.f_map], h_stack, gated=False, mask=mask).output()
-                if residual:
-                    h_stack_1 += h_stack_in  # Residual connection
-                h_stack_in = h_stack_1
+    def train(self, train_data, iterations=200000):
+        """
+        Train the network on the training data
+        Args:
+            training_data -
+            iterations - number of iterations to train before stopping
+        Returns:
+            None
+        """
+        td = train_data
 
-        with tf.variable_scope("fc_1"):
-            fc1 = GatedCNN([1, 1, conf.f_map], h_stack_in, gated=False, mask="b").output()
+        summaries = tf.merge_all_summaries()
+        td.sess.run(tf.initialize_all_variables())
 
-        if conf.data == "mnist":
-            with tf.variable_scope("fc_2"):
-                self.fc2 = GatedCNN([1, 1, 1], fc1, gated=False, mask="b", activation=False).output()
-            self.loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(self.fc2, self.X))
-            self.pred = tf.nn.sigmoid(self.fc2)
-        else:
-            color_dim = 256
-            with tf.variable_scope("fc_2"):
-                self.fc2 = GatedCNN([1, 1, conf.channel * color_dim], fc1,
-                                    gated=False, mask="b", activation=False).output()
-                self.fc2 = tf.reshape(self.fc2, (-1, color_dim))
+        lr = FLAGS.learning_rate
+        start_time = time.time()
+        done = False
+        batch = 0
+        # test_feature, test_label = td.sess.run
+        # TODO finish implementing
+        test_feature, test_labale = td.sess.run([td.test_features, td.test_labels])
 
-            self.loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
-                self.fc2, tf.cast(tf.reshape(self.X, [-1]), dtype=tf.int32)))
+        for i in iterations:
+            batch += 1
+            feed_dict = {td.learning_rate: lr}
 
-            """
-                Since this code was not run on CIFAR-10, I"m not sure which
-                would be a suitable way to generate 3-channel images. Below are
-                the 2 methods which may be used, with the first one (self.pred)
-                being more likely.
-            """
-            self.pred_sampling = tf.reshape(tf.multinomial(tf.nn.softmax(
-                self.fc2), num_samples=1, seed=100), tf.shape(self.X))
-            self.pred = tf.reshape(tf.argmax(tf.nn.softmax(self.fc2),
-                                             dimension=tf.rank(self.fc2) - 1), tf.shape(self.X))
+            ops = [self.optimizer, self.loss]
+            = td.sess.run(ops, feed_dict=feed_dict)
+            if batch % 10 == 0:
+                elapsed = (time.time() - start_time) // 60
+
+                print("Progress[{}%%], Batch[{}], Loss[{}]".format(i // iterations, batch, self.loss))
+
+    def loss(self, A_i, B_i):
+        """
+        Custom loss function described in https://arxiv.org/pdf/1702.00783.pdf
+        Args:
+            A_i - pixels in conditioning network less than i
+            B_i - pixels in prior network less than i
+        Returns:
+            loss between upscaled image and ground truth
+        """
+        one_hot_encoding = tf.matmul(one_hot(self.ground_truth), tf.add(2 * A_i, B_i))
+        AB_lse = tf.reduce_logsumexp(tf.add(A_i, B_i))
+        A_lse = tf.reduce_logsumexp(A_i)
+        ABA_lse = tf.add(AB_lse, A_lse)
+        self.loss = tf.sub(one_hot_encoding, ABA_lse)
+        return self.lossface
+
+    def create_loss(self, real_output, generated_output, features):
+        """
+        create an instance of the pixelresnet loss function
+        Args:
+
+        """
+        pass
+
+    def create_optimizer(self, variable_list):
+        """
+        create a optimizer instance
+        """
+        self.global_step = tf.variable(0, dtype=tf.int64, trainable=False, name="global_step")
+        self.learning_rate = tf.placeholder(dtype=tf.float32, name='learning_rate')
+        self.optimizer = tf.train.RMSPropOptimizer(learning_rate, decay=0.95, momentum=0.9,
+                                                   epsilon=1e-8).minimize(self.loss, var_list=variable_list)
+        return (self.global_step, self.learning_rate, self.optimizer)
+=======
+
+        return masked_conv_3
+
+    def combine_networks(self, config):
+        prior = self.prior_network
+        conditional = self.conditional_network
+        p_yi = tf.nn.softmax(tf.add(prior, conditional))
+>>>>>>> 1c32f535593de7483faf377efd979be849233740
 
 
 if __name__ == "__main__":
-    from tensorflow.examples.tutorials.mnist import input_data
-    mnist = input_data.read_data_sets("MNIST_data/", one_hot=True)
+    # from tensorflow.examples.tutorials.mnist import input_data
+    # mnist = input_data.read_data_sets("MNIST_data/", one_hot=True)
     import tensorflow as tf
-    x = tf.placeholder(tf.float32, [None, 784])
-    W = tf.Variable(tf.zeros([784, 10]))
-    b = tf.Variable(tf.zeros([10]))
-    y = tf.nn.softmax(tf.matmul(x, W) + b)
-    y_ = tf.placeholder(tf.float32, [None, 10])
-    cross_entropy = tf.reduce_mean(-tf.reduce_sum(y_ *
-                                                  tf.log(y), reduction_indices=[1]))
-    train_step = tf.train.GradientDescentOptimizer(0.5).minimize(cross_entropy)
-    sess = tf.InteractiveSession()
-    tf.global_variables_initializer().run()
-    for _ in range(1000):
-        batch_xs, batch_ys = mnist.train.next_batch(100)
-        sess.run(train_step, feed_dict={x: batch_xs, y_: batch_ys})
-    correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(y_, 1))
-    accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-    print(sess.run(accuracy, feed_dict={
-          x: mnist.test.images, y_: mnist.test.labels}))
+    x = tf.range(0, 3)
+    a, b, c = x
+    # x = tf.placeholder(tf.float32, [None, 784])
+    # W = tf.Variable(tf.zeros([784, 10]))
+    # b = tf.Variable(tf.zeros([10]))
+    # y = tf.nn.softmax(tf.matmul(x, W) + b)
+    # y_ = tf.placeholder(tf.float32, [None, 10])
+    # cross_entropy = tf.reduce_mean(-tf.reduce_sum(y_ *
+    #                                               tf.log(y), reduction_indices=[1]))
+    # train_step = tf.train.GradientDescentOptimizer(0.5).minimize(cross_entropy)
+    # sess = tf.InteractiveSession()
+    # tf.global_variables_initializer().run()
+    # for _ in range(1000):
+    #     batch_xs, batch_ys = mnist.train.next_batch(100)
+    #     sess.run(train_step, feed_dict={x: batch_xs, y_: batch_ys})
+    # correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(y_, 1))
+    # accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+    # print(sess.run(accuracy, feed_dict={
+    #       x: mnist.test.images, y_: mnist.test.labels}))
