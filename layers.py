@@ -111,20 +111,6 @@ def residual_block(X, filter_shape, num_layers=2, name=None):
             conv = conv_layer(relu, filter_shape=filter_shape)  # filter shape should be [3, 3, -1, 32]
 
     return tf.add(conv, bypass)
-<<<<<<< HEAD
-=======
-    #
-    # if input_depth != depth:
-    #     if projection:
-    #         input_layer = conv_layer("{}_projection".format(name), X, filter_shape=[1,
-    #                                                                                 input_depth, depth, 1], strides=[1, 2, 2, 1])
-    #     else:
-    #         input_layer = tf.pad(X, [[0, 0], [0, 0], [0, 0], [0, depth - input_depth]])
-    # else:
-    #     input_layer = X
-    #
-    # return tf.add(conv2, input_layer)
->>>>>>> 1c32f535593de7483faf377efd979be849233740
 
 
 def transposed_conv2d_layer(X, filter_shape, output_shape, strides=(1, 2, 2, 1), padding="SAME", name=None):
