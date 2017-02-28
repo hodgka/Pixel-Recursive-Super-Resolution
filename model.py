@@ -12,19 +12,8 @@ from utils import one_hot
 
 FLAGS = tf.app.flags.FLAGS
 
-<<<<<<< HEAD
 
 class PixelResNet(object):
-=======
-class PixelResolutionNet(object):
-
-    def __init__(self, input_images, config):
-        self.X = input_images
-        self.output_shape = [config.batch_size, config.height, config.width, config.channels]
-        self.B = config.conditional_layers
-        self.prior = prior_network(X, config)
-        self.conditional = conditional_network(X, config)
->>>>>>> 1c32f535593de7483faf377efd979be849233740
 
     def __init__(self, session, features, labels, channels=3):
         self.session = session
@@ -32,7 +21,6 @@ class PixelResolutionNet(object):
         self.labels = labels
         self.channels = channels
 
-<<<<<<< HEAD
         self.X = input_images
         self.output_shape = [config.batch_size, config.height, config.width, config.channels]
         self.B = config.conditioning_layers
@@ -56,29 +44,10 @@ class PixelResolutionNet(object):
         block = layers.transposed_conv2d_layer(
             block, filter_shape=[3, 3, -1, 32], output_shape=self.output_shape, name="trans_block_2")
         for _ in range(self.B):
-=======
-        return tf.sub(one_hot_encoding, ABA_lse)
-
-    def conditional_network(self, config):
-
-        inputs = tf.placeholder(tf.float32, [None, height, width, channels])
-        B = 6
-        block = inputs
-        for _ in range(B):
-            block = layers.residual_block(block, filter_shape=[3, 3, -1, 32], name="res_block_1")
-        block = layers.transposed_conv2d_layer(
-            block, filter_shape=[3, 3, -1, 32], output_shape=self.output_shape, name="trans_block_1")
-        for _ in range(B):
-            block = layers.residual_block(block, filter_shape=[3, 3, -1, 32], name="res_block_2")
-        block = layers.transposed_conv2d_layer(
-            block, filter_shape=[3, 3, -1, 32], output_shape=self.output_shape, name="trans_block_2")
-        for _ in range(B):
->>>>>>> 1c32f535593de7483faf377efd979be849233740
             block = layers.residual_block(block, filter_shape=[3, 3, -1, 32], name="res_block_3")
         conv = layers.conv_layer(block, filter_shape=[1, 1, -1, 3 * 256])
         return conv
 
-<<<<<<< HEAD
     def prior_network(self, h=None):
         """
         PixelCNN implementation for the prior network
@@ -94,20 +63,6 @@ class PixelResolutionNet(object):
         # rename to make chaining layers easy
         v_stack_in = masked_conv_1
         for i in range(self.prior_layers):
-=======
-    def prior_network(self, config, h=None):
-        """
-        PixelCNN implementation for the prior network
-        """
-        # inputs should already be processed by this point(normalized, whitened, etc..)
-        input_shape = self.output_shape
-        input_shape[0] = None
-        inputs = tf.placeholder(tf.float32, input_shape)
-
-        masked_conv_1 = layers.conv_layer(inputs, [-1, 7, 7, 64], "maked_conv_1", mask='a')
-
-        for i in range(config.prior_layers):
->>>>>>> 1c32f535593de7483faf377efd979be849233740
             filter_shape = [-1, 5, 5, 64]
             # type of convolution mask to use
             mask = "a" if i == 0 else "b"
@@ -117,7 +72,6 @@ class PixelResolutionNet(object):
 
         masked_conv_2 = layers.conv_layer(v_stack, [1, 1, -1, 1024], "maked_conv_2", mask='a')
         masked_conv_3 = layers.conv_layer(masked_conv_2, [1, 1, -1, 3 * 256], "maked_conv_3", mask='a')
-<<<<<<< HEAD
         return masked_conv_3
 
     def merge_networks(self):
@@ -200,15 +154,6 @@ class PixelResolutionNet(object):
         self.optimizer = tf.train.RMSPropOptimizer(learning_rate, decay=0.95, momentum=0.9,
                                                    epsilon=1e-8).minimize(self.loss, var_list=variable_list)
         return (self.global_step, self.learning_rate, self.optimizer)
-=======
-
-        return masked_conv_3
-
-    def combine_networks(self, config):
-        prior = self.prior_network
-        conditional = self.conditional_network
-        p_yi = tf.nn.softmax(tf.add(prior, conditional))
->>>>>>> 1c32f535593de7483faf377efd979be849233740
 
 
 if __name__ == "__main__":

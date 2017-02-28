@@ -7,3 +7,4 @@ tensorflow-resnet-pretrained-20160508
 *.meta
 *.ckpt
 *.gz
+*.txt
