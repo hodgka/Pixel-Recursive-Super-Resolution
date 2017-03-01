@@ -14,7 +14,7 @@ class ModelTrainer(object):
 
     def __init__(self, model):
         self.model_dir = FLAGS.model_dir  # directory to write model summaries to
-        self.dataset_dir = FLAGS.dataset  # directory containing data
+        self.dataset_dir = FLAGS.dataset_dir  # directory containing data
         self.batch_size = FLAGS.batch_size
         self.iterations = FLAGS.iterations
         self.learning_rate = FLAGS.learning_rate

@@ -17,7 +17,7 @@ def gated_cnn_layer(X, filter_shape, payload=None, mask=None, conditional=None, 
     with tf.variable_scope(name):
         b_shape = filter_shape[-1]  # TODO need to figure out whether to use 3rd or 4th entry
         # set filter_shape input channels to number of output channels of X
-        filter_shape[2] = tf.shape(X)[-1]
+        # filter_shape[2] = tf.shape(X)[-1]
 
         W_f = get_weights("v_W", filter_shape, mask=mask)
         W_g = get_weights("h_W", filter_shape, mask=mask)
@@ -35,8 +35,8 @@ def gated_cnn_layer(X, filter_shape, payload=None, mask=None, conditional=None, 
             b_g_shape = tf.shape(b_g)
             b_g = tf.reshape(b_g, (b_g_shape[0], 1, 1, b_g_shape[1]))
         else:
-            b_f = tf.get_variable("v_b", shape=b_shape, dtype=tf.float32, initializer=tf.zeros_initializer)
-            b_g = tf.get_variable("h_b", shape=b_shape, dtype=tf.float32, initializer=tf.zeros_initializer)
+            b_f = tf.get_variable("v_b", shape=b_shape, dtype=tf.float32)
+            b_g = tf.get_variable("h_b", shape=b_shape, dtype=tf.float32)
 
         conv_f = tf.nn.conv2d(X, W_f, strides=[1, 1, 1, 1], padding="SAME")
         conv_g = tf.nn.conv2d(X, W_g, strides=[1, 1, 1, 1], padding="SAME")
@@ -63,7 +63,7 @@ def conv_layer(X, filter_shape, strides=(1, 1, 1, 1), padding="SAME", mask=None,
         conv_filter = get_weights("conv_weights", filter_shape, mask=mask)
         conv = tf.nn.conv2d(X, conv_filter, strides=strides, padding=padding)
 
-        b = tf.get_variable("bias", shape=filter_shape[-1:], initializer=tf.zeros_initializer)
+        b = tf.get_variable("bias", shape=filter_shape[-1:], dtype=tf.float32, initializer=tf.zeros_initializer())
         conv = tf.nn.bias_add(conv, b)
         conv = tf.nn.relu(conv)
     return conv
@@ -77,7 +77,7 @@ def get_weights(name, filter_shape, mask=None):
         filter_shape - shape of filter in format [mapsize, mapsize, input_channels, output_channels]
         mask - type of mask to apply to the convolution weights. Mask is only applied if truthy
     """
-    weights_initializer = tf.contrib.layers.xavier_initializer
+    weights_initializer = tf.contrib.layers.xavier_initializer()
     W = tf.get_variable(name, shape=filter_shape, dtype=tf.float32, initializer=weights_initializer)
 
     if mask:
@@ -100,18 +100,18 @@ def residual_block(X, filter_shape, num_layers=2, name=None):
     """
     with tf.variable_scope(name):
         bypass = X  # residual link
-        input_channels = tf.shape(X)[-1]
+        input_channels = filter_shape[-2]
         output_channels = filter_shape[-1]
         # mismatched dimensions -> must preform projection mapping
         if input_channels != output_channels:
-            conv = conv_layer(X, filter_shape=[1, 1, input_channels, output_channels])
+            conv = conv_layer(X, filter_shape=[1, 1, input_channels, output_channels], name='projection_conv')
         else:
             conv = X
 
         for i in range(num_layers):
-            batch = tf.contrib.layers.batch_normal(conv, scale=False)  # next layer is ReLU so no need for gamma
+            batch = tf.contrib.layers.batch_norm(conv, scale=False)  # next layer is ReLU so no need for gamma
             relu = tf.nn.relu(batch)
-            conv = conv_layer(relu, filter_shape=filter_shape)  # filter shape should be [3, 3, -1, 32]
+            conv = conv_layer(relu, filter_shape=filter_shape, name="relu_conv" + str(i))
 
     return tf.add(conv, bypass)
 
@@ -128,7 +128,7 @@ def transposed_conv2d_layer(X, filter_shape, output_shape, strides=(1, 2, 2, 1),
 
         # make sure that output_shape is scaled correctly
         output_shape = [a * b for a, b in zip(output_shape, strides)]
-        bias = tf.get_variable(bias, output_shape[-1:])
         out = tf.nn.conv2d_transpose(X, conv_filter, output_shape=output_shape, strides=strides, padding=padding)
+        bias = tf.get_variable("bias", output_shape[-1:])
         out = tf.nn.bias_add(out, bias)
     return out
