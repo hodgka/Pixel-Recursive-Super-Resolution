@@ -15,3 +15,29 @@ Tensorflow implementation of [Pixel Recursive Super Resolution.](https://arxiv.o
     deep conditioning convolutional network. Human evaluations
     indicate that samples from our proposed model look
     more photo realistic than a strong L2 regression baseline.
+
+## Requirements
+* Python 2/3
+* Numpy 1.12.0
+* SkImage 0.12.3
+* Tensorflow 1.0
+
+## Installing / Getting started
+```shell
+git clone https://github.com/hodgka/Pixel-Recursive-Super-Resolution
+cd Pixel-Recursive-Super-Resolution
+
+```
+
+# Useage
+` python main.py [--options]`
+
+ option | default | description
+--- | --- | ---
+dataset_dir | dataset | Path to dataset
+model_dir | models | Output folder where models are dumped
+image_size | 8 | Size of downsampled images in pixels
+iterations | 2e5 | Number of iterations to train for
+batch_size | 32 | Number of samples per batch
+learning_rate | 4e-4 | Learning rate
+B | 8 | Size of Resnet blocks to use

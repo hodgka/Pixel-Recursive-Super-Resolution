@@ -4,7 +4,7 @@ import numpy as np
 import tensorflow as tf
 
 
-def gated_cnn_layer(X, filter_shape, payload, mask, conditional, name=None):
+def gated_cnn_layer(X, filter_shape, payload=None, mask=None, conditional=None, name=None):
     """
     Gated PixelCNN layer for the Prior network
     Args:
@@ -49,8 +49,8 @@ def gated_cnn_layer(X, filter_shape, payload, mask, conditional, name=None):
 
 
 def conv_layer(X, filter_shape, strides=(1, 1, 1, 1), padding="SAME", mask=None, name=None):
-    '''
-    Convolutional layer that supports masking A/B PixelCNN masking
+    """
+    Convolutional layer that supports A/B PixelCNN masking
     Args:
         name - name scope
         X - output of previous layer
@@ -58,14 +58,14 @@ def conv_layer(X, filter_shape, strides=(1, 1, 1, 1), padding="SAME", mask=None,
         strides - stride of convolution
         padding - padding of convolution
         mask - Type of mask to apply to filter weights (A or B). Only applied if truthy
-    '''
+    """
     with tf.variable_scope(name):
         conv_filter = get_weights("conv_weights", filter_shape, mask=mask)
         conv = tf.nn.conv2d(X, conv_filter, strides=strides, padding=padding)
 
-        b = tf.get_variable('bias', shape=filter_shape[-1:], initializer=tf.zeros_initializer)
+        b = tf.get_variable("bias", shape=filter_shape[-1:], initializer=tf.zeros_initializer)
         conv = tf.nn.bias_add(conv, b)
-
+        conv = tf.nn.relu(conv)
     return conv
 
 
@@ -87,7 +87,7 @@ def get_weights(name, filter_shape, mask=None):
         mask_filter[filter_mid_x, filter_mid_y + 1:, :, :] = 0.
         mask_filter[filter_mid_x + 1:, :, :, :] = 0.
 
-        if mask == 'a':  # type A mask vs type B mask
+        if mask == "a":  # type A mask vs type B mask
             mask_filter[filter_mid_x, filter_mid_y, :, :] = 0.
 
         W *= mask_filter
@@ -95,9 +95,12 @@ def get_weights(name, filter_shape, mask=None):
 
 
 def residual_block(X, filter_shape, num_layers=2, name=None):
+    """
+    ResNet block for the conditioning network
+    """
     with tf.variable_scope(name):
         bypass = X  # residual link
-        input_filters = tf.shape(X)[-1]
+        input_channels = tf.shape(X)[-1]
         output_channels = filter_shape[-1]
         # mismatched dimensions -> must preform projection mapping
         if input_channels != output_channels:
@@ -114,9 +117,12 @@ def residual_block(X, filter_shape, num_layers=2, name=None):
 
 
 def transposed_conv2d_layer(X, filter_shape, output_shape, strides=(1, 2, 2, 1), padding="SAME", name=None):
+    """
+    transpose convolution to upscale input image
+    """
     with tf.variable_scope(name):
         # conv_filter has shape [f_height, f_width, in_channels, out_channels]
-        conv_filter = get_weights('transposed_conv2d_layer', filter_shape, mask=None)
+        conv_filter = get_weights("transposed_conv2d_layer", filter_shape, mask=None)
         # transpose to [f_height, f_width, out_channels, in_channels]
         conv_filter = tf.transpose(conv_filter, perm=[0, 1, 3, 2])
 
