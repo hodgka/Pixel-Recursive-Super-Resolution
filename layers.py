@@ -3,132 +3,136 @@ from __future__ import absolute_import, print_function
 import numpy as np
 import tensorflow as tf
 
+from utils import split_and_gate
 
-def gated_cnn_layer(X, filter_shape, payload=None, mask=None, conditional=None, name=None):
+
+############################################################
+##  refactored module to have homogenous and simpler api  ##
+############################################################
+
+
+def gated_cnn_layer(X, state, kernel_shape, name):
     """
     Gated PixelCNN layer for the Prior network
     Args:
-        X - Input
-        filter_shape - Shape of weight tensor in format - [mapsize, mapsize, input_channels, output_channels]
-        payload - Vertical stack output
-        mask - Type of mask to use (type A / type B)
-        conditional - Latent one-hot representation vector, h
+        X - Input tensor in nhwc format
+        state - state from previous layer
+        kernel_shape - height and width of kernel
+        name - name for scoping
+    Returns:
+        gated output, and layer state
     """
+
+    # refactored this to implement to Fig.2 in https://arxiv.org/pdf/1606.05328.pdf
+    # rather than trying to implement eq. 4/5
     with tf.variable_scope(name):
-        b_shape = filter_shape[-1]  # TODO need to figure out whether to use 3rd or 4th entry
-        # set filter_shape input channels to number of output channels of X
-        filter_shape[2] = tf.shape(X)[-1]
+        batch_size, height, width, in_channel = X.get_shape().as_list()
+        kernel_h, kernel_w = kernel_shape
 
-        W_f = get_weights("v_W", filter_shape, mask=mask)
-        W_g = get_weights("h_W", filter_shape, mask=mask)
+        # left side / state input to layer
+        left = conv_layer(state, 2 * in_channel, kernel_shape, mask_type='c', name='left_conv')
+        new_state = split_and_gate(left, in_channel)
 
-        if conditional:
-            h_shape = tf.shape(conditional)[1]
+        # convolution from left side to right side. state -> output
+        left_to_right_conv = conv_layer(left, 2 * in_channel, [1, 1], name="middle_conv")
 
-            V_f = get_weights("v_V", [h_shape, filter_shape[3]])
-            b_f = tf.matmul(conditional, V_f)
-            b_f_shape = tf.shape(b_f)
-            b_f = tf.reshape(b_f, (b_f_shape[0], 1, 1, b_f_shape[1]))
+        # right side / output
+        right = conv_layer(X, 2 * in_channel, [1, kernel_w], mask_type='b', name='right_conv1')
+        new_output_gate = split_and_gate(right, in_channel)
+        new_output = conv_layer(new_output_gate, in_channel, [1, 1], mask_type='b', name='right_conv2')
 
-            V_g = get_weights("h_V", [h_shape, filter_shape[3]])
-            b_g = tf.matmul(conditional, V_g)
-            b_g_shape = tf.shape(b_g)
-            b_g = tf.reshape(b_g, (b_g_shape[0], 1, 1, b_g_shape[1]))
-        else:
-            b_f = tf.get_variable("v_b", shape=b_shape, dtype=tf.float32, initializer=tf.zeros_initializer)
-            b_g = tf.get_variable("h_b", shape=b_shape, dtype=tf.float32, initializer=tf.zeros_initializer)
-
-        conv_f = tf.nn.conv2d(X, W_f, strides=[1, 1, 1, 1], padding="SAME")
-        conv_g = tf.nn.conv2d(X, W_g, strides=[1, 1, 1, 1], padding="SAME")
-
-        if payload is not None:
-            conv_f += payload
-            conv_g += payload
-
-    return tf.multiply(tf.tanh(conv_f + b_f), tf.sigmoid(conv_g + b_g))
+        return new_output, new_state
 
 
-def conv_layer(X, filter_shape, strides=(1, 1, 1, 1), padding="SAME", mask=None, name=None):
-    """
-    Convolutional layer that supports A/B PixelCNN masking
+def conv_layer(X, out_channels, kernel_shape, strides=[1, 1], mask_type=None, name=None):
+    '''
+    Convolutional layer capable of being masked
     Args:
-        name - name scope
-        X - output of previous layer
-        filter_shape - shape of filter in format [mapsize, mapsize, input_channels, output_channels]
-        strides - stride of convolution
-        padding - padding of convolution
-        mask - Type of mask to apply to filter weights (A or B). Only applied if truthy
-    """
+        X - input tensor in nhwc format
+        out_channels - number of output channels to use
+        kernel_shape - height and width of kernel
+        strides - stride size
+        mask_type - type of mask to use. Masks using one of the following A/B/vertical stack mask from https://arxiv.org/pdf/1606.05328.pdf
+        name - name for scoping
+    Returns:
+        2d convolution layer
+    '''
+    # refactored get_weights and conv_layer into one function so it is much simpler and less fragile
     with tf.variable_scope(name):
-        conv_filter = get_weights("conv_weights", filter_shape, mask=mask)
-        conv = tf.nn.conv2d(X, conv_filter, strides=strides, padding=padding)
+        kernel_h, kernel_w = kernel_shape
+        batch_size, height, width, in_channel = X.get_shape().as_list()
 
-        b = tf.get_variable("bias", shape=filter_shape[-1:], initializer=tf.zeros_initializer)
-        conv = tf.nn.bias_add(conv, b)
-        conv = tf.nn.relu(conv)
-    return conv
+        # center coords of kernel/mask
+        center_h = kernel_h // 2
+        center_w = kernel_w // 2
 
+        if mask_type:
+            # using zeros is easier than ones, because horizontal stack
+            mask = np.zeros((kernel_h, kernel_w, in_channel, out_channels), dtype=np.float32)
 
-def get_weights(name, filter_shape, mask=None):
-    """
-    Helper function to mask weights
-    Args:
-        name - namespace scope
-        filter_shape - shape of filter in format [mapsize, mapsize, input_channels, output_channels]
-        mask - type of mask to apply to the convolution weights. Mask is only applied if truthy
-    """
-    weights_initializer = tf.contrib.layers.xavier_initializer
-    W = tf.get_variable(name, shape=filter_shape, dtype=tf.float32, initializer=weights_initializer)
+            # vertical stack only, no horizontal stack
+            mask[:center_h, :, :, :] = 1
 
-    if mask:
-        filter_mid_x = filter_shape[0] // 2
-        filter_mid_y = filter_shape[1] // 2
-        mask_filter = np.ones(filter_shape, dtype=np.float32)
-        mask_filter[filter_mid_x, filter_mid_y + 1:, :, :] = 0.
-        mask_filter[filter_mid_x + 1:, :, :, :] = 0.
-
-        if mask == "a":  # type A mask vs type B mask
-            mask_filter[filter_mid_x, filter_mid_y, :, :] = 0.
-
-        W *= mask_filter
-    return W
-
-
-def residual_block(X, filter_shape, num_layers=2, name=None):
-    """
-    ResNet block for the conditioning network
-    """
-    with tf.variable_scope(name):
-        bypass = X  # residual link
-        input_channels = tf.shape(X)[-1]
-        output_channels = filter_shape[-1]
-        # mismatched dimensions -> must preform projection mapping
-        if input_channels != output_channels:
-            conv = conv_layer(X, filter_shape=[1, 1, input_channels, output_channels])
+            if mask_type == 'a':  # no center pixel in mask
+                mask[center_h, :center_w, :, :] = 0
+            elif mask_type == 'b':  # center pixel in mask
+                mask[center_h, :center_w + 1, :, :] = 1
         else:
-            conv = X
+            # no mask
+            mask = np.ones((kernel_h, kernel_w, in_channel, out_channels), dtype=np.float32)
 
-        for i in range(num_layers):
-            batch = tf.contrib.layers.batch_normal(conv, scale=False)  # next layer is ReLU so no need for gamma
-            relu = tf.nn.relu(batch)
-            conv = conv_layer(relu, filter_shape=filter_shape)  # filter shape should be [3, 3, -1, 32]
+        # initialize and mask weights
+        weights_shape = [kernel_h, kernel_w, in_channel, out_channels]
+        weights_initializer = tf.contrib.layers.xavier_initializer()
+        weights = tf.get_variable("weights", shape=weights_shape,
+                                  dtype=tf.float32, initializer=weights_initializer)
+        weights = weights * mask
 
-    return tf.add(conv, bypass)
+        bias = tf.get_variable('bias', shape=[out_channels],
+                               dtype=tf.float32, initializer=tf.constant_initializer(0.0))
+
+        output = tf.nn.conv2d(X, weights, [1] + strides + [1], padding="SAME")
+        output = tf.nn.bias_add(output, bias)
+
+    return output
 
 
-def transposed_conv2d_layer(X, filter_shape, output_shape, strides=(1, 2, 2, 1), padding="SAME", name=None):
-    """
-    transpose convolution to upscale input image
-    """
+def residual_block(X, out_channels, kernel_shape, strides=[1, 1], name=None):
+    '''
+    ResNet block from https://arxiv.org/pdf/1512.03385.pdf
+    Args:
+        X - input tensor in nhwc format
+        out_channels - number of output channels to use
+        kernel_shape - height and width of kernel
+        strides - stride size
+        name - name for scoping
+    '''
     with tf.variable_scope(name):
-        # conv_filter has shape [f_height, f_width, in_channels, out_channels]
-        conv_filter = get_weights("transposed_conv2d_layer", filter_shape, mask=None)
-        # transpose to [f_height, f_width, out_channels, in_channels]
-        conv_filter = tf.transpose(conv_filter, perm=[0, 1, 3, 2])
+        conv1 = conv_layer(X, out_channels, kernel_shape, strides=strides, name="conv1")
+        batch_norm1 = tf.contrib.layers.batch_norm(conv1, center=True, scale=True, epsilon=1e-8)
+        relu1 = tf.nn.relu(batch_norm1)
 
-        # make sure that output_shape is scaled correctly
-        output_shape = [a * b for a, b in zip(output_shape, strides)]
-        bias = tf.get_variable(bias, output_shape[-1:])
-        out = tf.nn.conv2d_transpose(X, conv_filter, output_shape=output_shape, strides=strides, padding=padding)
-        out = tf.nn.bias_add(out, bias)
-    return out
+        conv2 = conv_layer(relu1, out_channels, kernel_shape, strides=strides, name="conv2")
+        batch_norm2 = tf.contrib.layers.batch_norm(conv2, center=True, scale=True, epsilon=1e-8)
+
+        output = X + batch_norm2
+        return output
+
+
+def transposed_conv2d_layer(X, out_channels, kernel_shape, strides=[1, 1], name="deconv2d"):
+    """
+    tranposed convolution layer
+    Args:
+      X - input tensor in nhwc format
+      out_channels - number of output channels to use
+      kernel_shape - height and width of kernel
+      strides - stride size
+      name - name for scoping
+    Returns:
+        upscaled image tensor in nhwc format
+    """
+    # I was making this way too complicated before. much simpler now
+    with tf.variable_scope(name):
+        return tf.contrib.layers.convolution2d_transpose(X, out_channels, kernel_shape, strides,
+                                                         padding='SAME', weights_initializer=tf.contrib.layers.xavier_initializer(),
+                                                         biases_initializer=tf.constant_initializer(0.0))

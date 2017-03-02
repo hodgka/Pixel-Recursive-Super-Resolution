@@ -1,4 +1,5 @@
 import os
+import time
 
 import tensorflow as tf
 
@@ -9,12 +10,15 @@ FLAGS = tf.app.flags.FLAGS
 
 class ModelTrainer(object):
     """
-    Class to take care of setting up model parameters and tensorflow configuration
+    Class to take care of setting up tensorflow configuration, model parameters, managing training, and producing samples
     """
 
     def __init__(self, model):
+        '''
+        Setup directories, dataset, model, and optimizer
+        '''
         self.model_dir = FLAGS.model_dir  # directory to write model summaries to
-        self.dataset_dir = FLAGS.dataset  # directory containing data
+        self.dataset_dir = FLAGS.dataset_dir  # directory containing data
         self.batch_size = FLAGS.batch_size
         self.iterations = FLAGS.iterations
         self.learning_rate = FLAGS.learning_rate
@@ -25,16 +29,21 @@ class ModelTrainer(object):
         if not os.path.exists(self.dataset_dir):
             os.makedirs(self.dataset_dir)
 
-        self.global_step = tf.get_variable("global_step", [], initializer=tf.constant_initializer(0), trainable=False)
+        self.global_step = tf.get_variable("global_step", [],
+                                           initializer=tf.constant_initializer(0), trainable=False)
 
         # parse data and create model
         self.dataset = Dataset(self.dataset_dir, self.iterations, self.batch_size)
         self.model = model(self.dataset.hr_images, self.dataset.lr_images)
-        learning_rate = tf.train.exponential_decay(self.learning_rate, self.global_step, 500000, 0.5,  staircase=True)
+        learning_rate = tf.train.exponential_decay(
+            self.learning_rate, self.global_step, 500000, 0.5,  staircase=True)
         optimizer = tf.train.RMSPropOptimizer(learning_rate, decay=0.95, momentum=0.9, epsilon=1e-8)
-        self.train_optimizer = optimizer.minimize(self.net.loss, global_step=self.global_step)
+        self.train_optimizer = optimizer.minimize(self.model.loss, global_step=self.global_step)
 
     def train(self):
+        '''
+        Initialize variables, setup summary writer, saver and Coordinator and start training
+        '''
         init = tf.global_variables_initializer()
         summarize = tf.summary.merge_all()
         saver = tf.train.Saver()
@@ -51,7 +60,7 @@ class ModelTrainer(object):
             try:
                 while not coord.should_stop():
                     t1 = time.time()
-                    _, loss = sess.run([self.train_optimizer, self.net.loss])
+                    _, loss = sess.run([self.train_optimizer, self.model.loss])
                     t2 = time.time()
 
                     print("Step {}, loss={} ){} examples/sec; {} sec/batch".format(iterations,
@@ -83,20 +92,28 @@ class ModelTrainer(object):
         """
         Save output image from model
         """
-        conditioning_logits = self.net.conditioning_logits
-        prior_logits = self.net.prior_logits
-        lr_images = self.dataset.lr_images
+        conditioning_logits = self.model.conditioning_logits
+        prior_logits = self.model.prior_logits
+
         hr_images = self.database.hr_images
-        np_hr_images, np_lr_images = sess.run([hr_images, lr_images])
+        lr_images = self.dataset.lr_images
+
+        # fetch values for hr_images and lr_images
+        fetched_hr_images, fetched_lr_images = sess.run([hr_images, lr_images])
+        # get ready to generate images
         generated_hr_images = np.zeros([self.batch_size, 32, 32, 3], dtype=tf.float32)
-        np_conditioning_logits = sess.run(conditioning_logits, feed_dict={lr_images: np_lr_images})
+        # evaluate conditioning network on low res images
+        fetched_conditioning_logits = sess.run(conditioning_logits, feed_dict={
+                                               lr_images: fetched_lr_images})
 
         for i in range(32):
             for j in range(32):
                 for c in range(3):
-                    np_p_logits = sess.run(prior_logits, feed_dict={hr_images: generated_hr_images})
-                    new_pixel = logits_to_pixel(np_conditioning_logits[:, i, j, c * 256: (c + 1) * 256]
-                                                + np_prior_logits[:, i, j, c * 256:(c + 1) * 256], mu=mu)
+                    # evaluate prior network on high res images
+                    fetched_prior_logits = sess.run(prior_logits, feed_dict={hr_images: generated_hr_images})
+                    new_pixel = logits_to_pixel(fetched_conditioning_logits[:, i, j, c * 256: (c + 1) * 256]
+                                                + fetched_prior_logits[:, i, j, c * 256:(c + 1) * 256], mu=mu)
         save_samples(np_lr_images, self.samples_dir + "/lr_" + str(mu * 10) + "_" + str(step) + ".jpg")
         save_samples(np_lr_images, self.samples_dir + "/hr_" + str(mu * 10) + "_" + str(step) + ".jpg")
-        save_samples(generated_hr_images, self.samples_dir + "/generate" + str(mu * 10) + "_" + str(step) + ".jpg")
+        save_samples(generated_hr_images, self.samples_dir +
+                     "/generate" + str(mu * 10) + "_" + str(step) + ".jpg")

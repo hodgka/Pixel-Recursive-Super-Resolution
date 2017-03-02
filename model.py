@@ -7,7 +7,8 @@ import numpy as np
 import scipy.misc
 import tensorflow as tf
 
-import layers
+from layers import *
+from utils import normalize_color, split_and_gate
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -18,75 +19,91 @@ class PixelResNet(object):
     From https://arxiv.org/pdf/1702.00783.pdf
     """
 
-    def __init__(self, lr_images, hr_images, name=None):
+    def __init__(self, hr_images, lr_images, name='pixelresnet'):
         with tf.variable_scope(name):
-            self.num_prior_layers = FLAGS.num_prior_layers
-            self.B = FLAGS.conditioning_layers  # number of resnet blocks
-            self.build_network(lr_images, hr_images)
+            self.B = FLAGS.B  # number of resnet blocks
+            self.merge_networks(hr_images, lr_images)
 
     def prior_network(self, hr_images):
         """
         Create PixelCNN prior network and return prior logits
+        Args:
+            hr_images - high resolution images - 32x32
+        Returns:
+            logits for prior network
         """
         with tf.variable_scope("prior"):
-            masked_conv_1 = layers.conv_layer(hr_images, [-1, 7, 7, 64], mask="a", name="conv1")
-            v_stack_in = masked_conv_1
-            for i in range(self.num_prior_layers):
-                v_stack_in = layers.gated_cnn_layer(v_stack_in, [-1, 5, 5, 64], name="gated" + str(i))
-            masked_conv_2 = layers.conv_layer(v_stack_in, [1, 1, -1, 1024], mask="a", name="conv2")
-            masked_conv_3 = layers.conv_layer(masked_conv_2, [1, 1, 3 * 256], mask="b", name="conv3")
+            conv_1 = conv_layer(hr_images, 64, [7, 7], mask_type='a', name='conv1')
+            X = state = conv_1
+            for i in range(20):
+                X, state = gated_cnn_layer(X, state, [5, 5], name="gated" + str(i))
+            conv2 = conv_layer(X, 1024, [1, 1], mask_type='b', name='conv2')
+            conv2 = tf.nn.relu(conv2)
+            prior_logits = conv_layer(conv2, 3 * 256,
+                                      [1, 1], mask_type='b', name="conv3")
+            prior_logits = tf.concat([prior_logits[:, :, :, 0::3],
+                                      prior_logits[:, :, :, 1::3],
+                                      prior_logits[:, :, :, 2::3]], axis=-1)
 
-            prior_logits = tf.concat([masked_conv_3[:, :, :, 0::3],
-                                      masked_conv_3[:, :, :, 1::3],
-                                      masked_conv_3[:, :, :, 2::3]], axis=-1)
             return prior_logits
 
     def conditioning_network(self, lr_images):
         """
-        Create ResNet Conditioning network and return conditioning logits
-        """
-        with tf.variable_scope("conditioning"):
-            block = layers.conv_layer(lr_images, [1, 1, -1, 32], name="conv_init")
+        Create ResNet Conditioning network
 
-            for i in range(2):
+        """
+        with tf.variable_scope('conditioning') as scope:
+            inputs = lr_images
+            inputs = conv_layer(inputs, 32, [1, 1], mask_type=None, name="conv_init")
+            for i in range(2):  # easy to make it deeper this way
                 for j in range(self.B):
-                    block = layers.residual_block(block, [3, 3, -1, 32], name="res" + str(i) + str(j))
-                block = layers.transposed_conv2d_layer(
-                    block, [3, 3, -1, 32], output_shape=self.output_shape, name="trans" + str(i))
-                block = tf.nn.relu(block)
+                    inputs = residual_block(inputs, 32, [3, 3], name='residual_{}_{}'.format(str(i+1), str(j +)))
+                inputs = transposed_conv2d_layer(inputs, 32, [3, 3], strides=[2, 2], name="deconv_" + str(i))
+                inputs = tf.nn.relu(inputs)
 
             for i in range(self.B):
-                block = layers.residual_block(block, [3, 3, -1, 32], name="res2" + str(i))
-
-            conditioning_logits = layers.conv_layer(block, [1, 1, -1, 3 * 256], name="conv")
-
-        return conditioning_logits
+                inputs = residual_block(inputs, 32, [3, 3], name='residual_3_' + str(i))
+            conditioning_logits = conv_layer(inputs, 3 * 256, [1, 1], mask_type=None, name="conv")
+            return conditioning_logits
 
     def _loss(self, logits, labels):
         """
         Compute cross_entropy loss
+        Args:
+            Logits - sum from conditioning and prior networks
+            labels - ground truth from 32 x 32 images
+        Returns:
+            cross_entropy loss over image
         """
         logits = tf.reshape(logits, [-1, 256])
         labels = tf.cast(labels, tf.int32)
         labels = tf.reshape(labels, [-1])
-        return tf.losses.sparse_softmax_cross_entropy_with_logits(labels, logits)
+        return tf.nn.sparse_softmax_cross_entropy_with_logits(labels=labels, logits=logits)
 
-    def merge_networks(self, lr_images, hr_images):
+    def merge_networks(self, hr_images, lr_images):
         """
         Combine Prior and Conditioning networks to generate image and get loss
+        Args:
+            hr_images - high resolution images, ground truth 32x32 images
+            lr_images - low resolution images, down sampled 8x8 images
+        Returns:
+            None, computes loss
         """
-        labels = hr_images
+        labels = hr_images  # high resolution images are ground truth for loss function
         hr_images = normalize_color(hr_images)  # convert to [-1, 1] scale
         lr_images = normalize_color(lr_images)  # convert to [-1, 1] scale
 
         self.prior_logits = self.prior_network(hr_images)
         self.conditioning_logits = self.conditioning_network(lr_images)
 
-        loss1 = self._loss(self.prior_logits + self.conditioning_logits, labels)
+        s = self.prior_logits + self.conditioning_logits
+        loss1 = self._loss(s, labels)
         loss2 = self._loss(self.conditioning_logits, labels)
         loss3 = self._loss(self.prior_logits, labels)
-
+        #
         self.loss = loss1 + loss2
-
+        # TODO FIX shapes of logits so loss actually works
+        # self.loss = np.array([1], dtype=np.uint8)
+        # loss3 = np.array([1], dtype=np.uint8)
         tf.summary.scalar("loss", self.loss)
-        tf.summary.scaler("prior_loss", loss3)
+        tf.summary.scalar("prior_loss", loss3)

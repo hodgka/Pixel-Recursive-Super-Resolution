@@ -10,6 +10,14 @@ from skimage.io import imsave
 FLAGS = tf.app.flags.FLAGS
 
 
+def split_and_gate(tensor, channels):
+    t1 = tensor[:, :, :, :channels]
+    t2 = tensor[:, :, :, channels:]
+    t1 = tf.nn.tanh(t1)
+    t2 = tf.nn.sigmoid(t2)
+    return t1 * t2
+
+
 def logits_to_pixel(logits, mu=1.0):
     """
     Helper function to convert output logits from network into pixels
