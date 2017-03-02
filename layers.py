@@ -31,6 +31,7 @@ def gated_cnn_layer(X, state, kernel_shape, name):
 
         # left side / state input to layer
         left = conv_layer(state, 2 * in_channel, kernel_shape, mask_type='c', name='left_conv')
+        # helper function to split in two and apply tanh and sigmoind
         new_state = split_and_gate(left, in_channel)
 
         # convolution from left side to right side. state -> output
@@ -38,8 +39,10 @@ def gated_cnn_layer(X, state, kernel_shape, name):
 
         # right side / output
         right = conv_layer(X, 2 * in_channel, [1, kernel_w], mask_type='b', name='right_conv1')
-        new_output_gate = split_and_gate(right, in_channel)
-        new_output = conv_layer(new_output_gate, in_channel, [1, 1], mask_type='b', name='right_conv2')
+        right = right + left_to_right_conv
+        new_output = split_and_gate(right, in_channel)
+        new_output = conv_layer(new_output, in_channel, [1, 1], mask_type='b', name='right_conv2')
+        new_output = new_output + X
 
         return new_output, new_state
 
@@ -83,7 +86,11 @@ def conv_layer(X, out_channels, kernel_shape, strides=[1, 1], mask_type=None, na
 
         # initialize and mask weights
         weights_shape = [kernel_h, kernel_w, in_channel, out_channels]
-        weights_initializer = tf.contrib.layers.xavier_initializer()
+
+        # need to experiment with truncated normal vs xavier glorot
+        # weights_initializer = tf.contrib.layers.xavier_initializer()
+        weights_initializer = tf.truncated_normal_initializer(stddev=0.1)
+
         weights = tf.get_variable("weights", shape=weights_shape,
                                   dtype=tf.float32, initializer=weights_initializer)
         weights = weights * mask
@@ -91,7 +98,7 @@ def conv_layer(X, out_channels, kernel_shape, strides=[1, 1], mask_type=None, na
         bias = tf.get_variable('bias', shape=[out_channels],
                                dtype=tf.float32, initializer=tf.constant_initializer(0.0))
 
-        output = tf.nn.conv2d(X, weights, [1] + strides + [1], padding="SAME")
+        output = tf.nn.conv2d(X, weights, [1, strides[0], strides[1], 1], padding="SAME")
         output = tf.nn.bias_add(output, bias)
 
     return output
@@ -133,6 +140,11 @@ def transposed_conv2d_layer(X, out_channels, kernel_shape, strides=[1, 1], name=
     """
     # I was making this way too complicated before. much simpler now
     with tf.variable_scope(name):
+
+        # need to experiment with truncated_normal vs xavier glorot initialization
+        # weights_initializer = tf.contrib.layers.xavier_initializer()
+        weights_initializer = tf.truncated_normal_initializer(stddev=0.1)
+
         return tf.contrib.layers.convolution2d_transpose(X, out_channels, kernel_shape, strides,
-                                                         padding='SAME', weights_initializer=tf.contrib.layers.xavier_initializer(),
+                                                         padding='SAME', weights_initializer=weights_initializer,
                                                          biases_initializer=tf.constant_initializer(0.0))

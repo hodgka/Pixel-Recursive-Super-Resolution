@@ -17,7 +17,6 @@ class Dataset(object):
         image_reader = tf.WholeFileReader()
         _, image_file = image_reader.read(filename_queue)
 
-        # try to open jpeg or png. otherwise raise exception
         image = tf.image.decode_jpeg(image_file, 3)
         hr_image = tf.image.resize_images(image, [32, 32])  # downsample image
         lr_image = tf.image.resize_images(image, [8, 8])  # REALLY downsample image
@@ -33,6 +32,7 @@ class Dataset(object):
 
 
 def filename_writer(data_path, fname=None):
+    # TODO make this more efficient by writing to file/checking for file
     prefix_files = lambda x: os.path.abspath(data_path + '/' + x)
     records = list(map(prefix_files, os.listdir(data_path)))
     # with open(fname, 'w') as f:

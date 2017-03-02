@@ -1,5 +1,6 @@
-dataset
-models
+dataset/
+models/
+samples/
 *.pyc
 *.meta
 *.ckpt
