@@ -18,13 +18,7 @@ class Dataset(object):
         _, image_file = image_reader.read(filename_queue)
 
         # try to open jpeg or png. otherwise raise exception
-        try:
-            image = tf.image.decode_jpeg(image_file, 3)
-        except InvalidArgumentError:
-            try:
-                image = tf.image.decode_png(image_file, 3)
-            except InvalidArgumentError:
-                raise
+        image = tf.image.decode_jpeg(image_file, 3)
         hr_image = tf.image.resize_images(image, [32, 32])  # downsample image
         lr_image = tf.image.resize_images(image, [8, 8])  # REALLY downsample image
         hr_image = tf.cast(hr_image, tf.float32)

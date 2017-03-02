@@ -7,6 +7,7 @@ import numpy as np
 import scipy.misc
 import tensorflow as tf
 
+import layers
 from layers import *
 from utils import normalize_color, split_and_gate
 
@@ -57,7 +58,8 @@ class PixelResNet(object):
             inputs = conv_layer(inputs, 32, [1, 1], mask_type=None, name="conv_init")
             for i in range(2):  # easy to make it deeper this way
                 for j in range(self.B):
-                    inputs = residual_block(inputs, 32, [3, 3], name='residual_{}_{}'.format(str(i+1), str(j +)))
+                    inputs = residual_block(
+                        inputs, 32, [3, 3], name='residual_{}_{}'.format(str(i + 1), str(j + 1)))
                 inputs = transposed_conv2d_layer(inputs, 32, [3, 3], strides=[2, 2], name="deconv_" + str(i))
                 inputs = tf.nn.relu(inputs)
 
@@ -100,10 +102,8 @@ class PixelResNet(object):
         loss1 = self._loss(s, labels)
         loss2 = self._loss(self.conditioning_logits, labels)
         loss3 = self._loss(self.prior_logits, labels)
-        #
+
         self.loss = loss1 + loss2
-        # TODO FIX shapes of logits so loss actually works
-        # self.loss = np.array([1], dtype=np.uint8)
-        # loss3 = np.array([1], dtype=np.uint8)
+
         tf.summary.scalar("loss", self.loss)
         tf.summary.scalar("prior_loss", loss3)

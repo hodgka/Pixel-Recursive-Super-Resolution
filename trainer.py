@@ -1,9 +1,11 @@
 import os
 import time
 
+import numpy as np
 import tensorflow as tf
 
 from data import Dataset
+from utils import *
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -19,6 +21,7 @@ class ModelTrainer(object):
         '''
         self.model_dir = FLAGS.model_dir  # directory to write model summaries to
         self.dataset_dir = FLAGS.dataset_dir  # directory containing data
+        self.samples_dir = FLAGS.samples_dir  # directory for sampled images
         self.batch_size = FLAGS.batch_size
         self.iterations = FLAGS.iterations
         self.learning_rate = FLAGS.learning_rate
@@ -28,6 +31,8 @@ class ModelTrainer(object):
             os.makedirs(self.model_dir)
         if not os.path.exists(self.dataset_dir):
             os.makedirs(self.dataset_dir)
+        if not os.path.exists(self.samples_dir):
+            os.makedirs(self.samples_dir)
 
         self.global_step = tf.get_variable("global_step", [],
                                            initializer=tf.constant_initializer(0), trainable=False)
@@ -63,12 +68,8 @@ class ModelTrainer(object):
                     _, loss = sess.run([self.train_optimizer, self.model.loss])
                     t2 = time.time()
 
-                    print("Step {}, loss={} ){} examples/sec; {} sec/batch".format(iterations,
+                    print("Step {}, loss={}, {} examples/sec; {} sec/batch".format(iterations,
                                                                                    loss, self.batch_size / (t2 - t1), (t2 - t1)))
-                    # write summary
-                    if iterations % 10 == 0:
-                        summary_str = sess.run(summarize)
-                        summary_writer.add_summary(summary_str, iterations)
 
                     # create sample
                     if iterations % 1000 == 0:
@@ -88,24 +89,25 @@ class ModelTrainer(object):
 
             coord.join(threads)
 
-    def sample_from_model(self, session, mu=1.0, step=None):
+    def sample_from_model(self, sess, mu=1.0, step=None):
         """
         Save output image from model
         """
         conditioning_logits = self.model.conditioning_logits
         prior_logits = self.model.prior_logits
 
-        hr_images = self.database.hr_images
+        hr_images = self.dataset.hr_images
         lr_images = self.dataset.lr_images
 
         # fetch values for hr_images and lr_images
         fetched_hr_images, fetched_lr_images = sess.run([hr_images, lr_images])
         # get ready to generate images
-        generated_hr_images = np.zeros([self.batch_size, 32, 32, 3], dtype=tf.float32)
+        generated_hr_images = np.zeros([self.batch_size, 32, 32, 3], dtype=np.float32)
         # evaluate conditioning network on low res images
         fetched_conditioning_logits = sess.run(conditioning_logits, feed_dict={
                                                lr_images: fetched_lr_images})
 
+        # There has to be a better way...
         for i in range(32):
             for j in range(32):
                 for c in range(3):
@@ -113,7 +115,8 @@ class ModelTrainer(object):
                     fetched_prior_logits = sess.run(prior_logits, feed_dict={hr_images: generated_hr_images})
                     new_pixel = logits_to_pixel(fetched_conditioning_logits[:, i, j, c * 256: (c + 1) * 256]
                                                 + fetched_prior_logits[:, i, j, c * 256:(c + 1) * 256], mu=mu)
-        save_samples(np_lr_images, self.samples_dir + "/lr_" + str(mu * 10) + "_" + str(step) + ".jpg")
-        save_samples(np_lr_images, self.samples_dir + "/hr_" + str(mu * 10) + "_" + str(step) + ".jpg")
+        save_samples(fetched_lr_images, self.samples_dir + "/lr_" + str(mu * 10) + "_" + str(step) + ".jpg")
+        save_samples(fetched_hr_images_lr_images, self.samples_dir +
+                     "/hr_" + str(mu * 10) + "_" + str(step) + ".jpg")
         save_samples(generated_hr_images, self.samples_dir +
                      "/generate" + str(mu * 10) + "_" + str(step) + ".jpg")

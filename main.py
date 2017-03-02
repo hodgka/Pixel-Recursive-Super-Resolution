@@ -16,9 +16,10 @@ tf.app.flags.DEFINE_float("learning_rate", 0.0004, "Learning Rate")
 tf.app.flags.DEFINE_integer("B", 6, "Number of ResNet layers in conditional network")
 tf.app.flags.DEFINE_integer("batch_size", 32, "Number of samples per batch")
 tf.app.flags.DEFINE_integer("image_size", 8, "Size in pixels of image")
-tf.app.flags.DEFINE_integer("iterations", 200000, "Number of training iterations")
+tf.app.flags.DEFINE_integer("iterations", 2000, "Number of training iterations")
 tf.app.flags.DEFINE_string("dataset_dir", "dataset", "Path to dataset directory")
 tf.app.flags.DEFINE_string("model_dir", "models", "Output folder where models are dumped.")
+tf.app.flags.DEFINE_string("samples_dir", "samples", "Output folder where samples are dumped.")
 
 
 def main(argv=None):
