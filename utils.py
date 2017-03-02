@@ -1,3 +1,5 @@
+from __future__ import absolute_import, division, print_function
+
 import glob
 import logging
 import os
@@ -5,7 +7,7 @@ from datetime import datetime
 
 import numpy as np
 import tensorflow as tf
-from skimage.io import imsave
+# from skimage.io import imsave
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -58,4 +60,5 @@ def save_samples(fetched_images, image_path):
     for i in range(num):
         for j in range(num):
             merged_image[i * h:(i + 1) * h, j * w: (j + 1) * w, :] = fetched_images[i * num + j, :, :, :]
-    imsave(image_path, merged_image)
+    tf.summary.image(image_path, merged_image)
+    # imsave(image_path, merged_image)

@@ -1,3 +1,5 @@
+from __future__ import absolute_import, division, print_function
+
 import os
 import time
 
@@ -26,6 +28,8 @@ class ModelTrainer(object):
         self.model_dir = FLAGS.model_dir  # directory to write model summaries to
         self.dataset_dir = FLAGS.dataset_dir  # directory containing data
         self.samples_dir = FLAGS.samples_dir  # directory for sampled images
+        self.device_id = FLAGS.device_id
+        self.use_gpu = FLAGS.use_gpu
 
         # create directories if they don"t exist yert
         if not os.path.exists(self.model_dir):
@@ -35,16 +39,21 @@ class ModelTrainer(object):
         if not os.path.exists(self.samples_dir):
             os.makedirs(self.samples_dir)
 
-        self.global_step = tf.get_variable("global_step", [],
-                                           initializer=tf.constant_initializer(0), trainable=False)
+        if self.use_gpu:
+            device_str = '/gpu:' + str(self.device_id)
+        else:
+            device_str = '/cpu:0'
+        with tf.device(device_str):
+            self.global_step = tf.get_variable("global_step", [],
+                                               initializer=tf.constant_initializer(0), trainable=False)
 
-        # parse data and create model
-        self.dataset = Dataset(self.dataset_dir, self.iterations, self.batch_size)
-        self.model = model(self.dataset.hr_images, self.dataset.lr_images)
-        learning_rate = tf.train.exponential_decay(self.learning_rate, self.global_step,
-                                                   500000, 0.5,  staircase=True)
-        optimizer = tf.train.RMSPropOptimizer(learning_rate, decay=0.95, momentum=0.9, epsilon=1e-8)
-        self.train_optimizer = optimizer.minimize(self.model.loss, global_step=self.global_step)
+            # parse data and create model
+            self.dataset = Dataset(self.dataset_dir, self.iterations, self.batch_size)
+            self.model = model(self.dataset.hr_images, self.dataset.lr_images)
+            learning_rate = tf.train.exponential_decay(self.learning_rate, self.global_step,
+                                                       500000, 0.5,  staircase=True)
+            optimizer = tf.train.RMSPropOptimizer(learning_rate, decay=0.95, momentum=0.9, epsilon=1e-8)
+            self.train_optimizer = optimizer.minimize(self.model.loss, global_step=self.global_step)
 
     def train(self):
         '''
@@ -54,6 +63,7 @@ class ModelTrainer(object):
         summarize = tf.summary.merge_all()
         saver = tf.train.Saver()
         config = tf.ConfigProto(allow_soft_placement=True)
+        config.gpu_options.allow_growth = True
         with tf.Session(config=config) as sess:
             sess.run(init)
             # write model summary
@@ -80,6 +90,7 @@ class ModelTrainer(object):
                     if iterations % 2 == 0:
                         print("Sampling from model")
                         self.sample_from_model(sess, mu=1.0, step=iterations)
+                        summary_writer.add_summary
                         print("Done sampling model")
 
                     # save model
@@ -108,8 +119,8 @@ class ModelTrainer(object):
 
         fetched_conditioning_logits = sess.run(conditioning_logits, feed_dict={lr_imgs: fetched_lr_imgs})
 
-        for i in range(1):
-            for j in range(4):
+        for i in range(32):
+            for j in range(32):
                 for c in range(3):
                     fetched_prior_logits = sess.run(prior_logits, feed_dict={hr_imgs: generated_hr_imgs})
                     # get_value for new pixel
@@ -117,7 +128,7 @@ class ModelTrainer(object):
                         fetched_conditioning_logits[:, i, j, c * 256:(c + 1) * 256] + fetched_prior_logits[:, i, j, c * 256:(c + 1) * 256], mu=mu)
                     # add pixel to generated image
                     generated_hr_imgs[:, i, j, c] = new_pixel
-
-        save_samples(fetched_lr_imgs, self.samples_dir + '/lr_' + str(mu * 10) + '_' + str(step) + '.jpg')
-        save_samples(fetched_hr_imgs, self.samples_dir + '/hr_' + str(mu * 10) + '_' + str(step) + '.jpg')
-        save_samples(generated_hr_imgs, self.samples_dir + '/generate_' + str(mu * 10) + '_' + str(step) + '.jpg')
+                print("pixel", i, j)
+        save_samples(fetched_lr_imgs, self.model_dir + '/lr_' + str(mu * 10) + '_' + str(step) + '.jpg')
+        save_samples(fetched_hr_imgs, self.model_dir + '/hr_' + str(mu * 10) + '_' + str(step) + '.jpg')
+        save_samples(generated_hr_imgs, self.model_dir + '/generate_' + str(mu * 10) + '_' + str(step) + '.jpg')
