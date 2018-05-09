@@ -4,35 +4,34 @@ import os
 
 import tensorflow as tf
 
-FLAGS = tf.app.flags.FLAGS
 
-class Dataset(object):
-    """
-    Class to create a image reader queue to batch dataset
-    """
+# class Dataset(object):
+#     """
+#     Class to create a image reader queue to batch dataset
+#     """
 
-    def __init__(self, dataset, iterations, batch_size):
+#     def __init__(self, dataset, iterations, batch_size):
 
-        fnames = [f'./data/{dataset}/{fname}' for fname in os.listdir(f'./data/{dataset}')]
+#         fnames = [f'./data/{dataset}/{fname}' for fname in os.listdir(f'./data/{dataset}')]
 
-        filename_queue = tf.train.string_input_producer(fnames)
-        image_reader = tf.WholeFileReader()
-        _, image_file = image_reader.read(filename_queue)
+#         filename_queue = tf.train.string_input_producer(fnames)
+#         image_reader = tf.WholeFileReader()
+#         _, image_file = image_reader.read(filename_queue)
 
-        image = tf.image.decode_image(image_file, 3)
-        hr_image = tf.image.resize_image_with_crop_or_pad(image, 128, 128)
-        lr_image = tf.image.resize_bilinear(hr_image, (128//8, 128//8))
-        hr_image = tf.image.resize_images(image, [32, 32])  # downsample image
-        lr_image = tf.image.resize_images(image, [8, 8])  # REALLY downsample image
-        hr_image = tf.cast(hr_image, tf.float32)
-        lr_image = tf.cast(lr_image, tf.float32)
+#         image = tf.image.decode_image(image_file, 3)
+#         hr_image = tf.image.resize_image_with_crop_or_pad(image, 128, 128)
+#         lr_image = tf.image.resize_bilinear(hr_image, (128//8, 128//8))
+#         hr_image = tf.image.resize_images(image, [32, 32])  # downsample image
+#         lr_image = tf.image.resize_images(image, [8, 8])  # REALLY downsample image
+#         hr_image = tf.cast(hr_image, tf.float32)
+#         lr_image = tf.cast(lr_image, tf.float32)
 
-        min_after_dequeue = 1000
-        capacity = min_after_dequeue + 400 * batch_size
+#         min_after_dequeue = 1000
+#         capacity = min_after_dequeue + 400 * batch_size
 
-        # batches images of shape [batch_size, 32, 32, 3],[batch_size, 8, 8, 3]
-        self.hr_images, self.lr_images = tf.train.shuffle_batch([hr_image, lr_image], batch_size=batch_size,
-                                                                min_after_dequeue=min_after_dequeue, capacity=capacity)
+#         # batches images of shape [batch_size, 32, 32, 3],[batch_size, 8, 8, 3]
+#         self.hr_images, self.lr_images = tf.train.shuffle_batch([hr_image, lr_image], batch_size=batch_size,
+#                                                                 min_after_dequeue=min_after_dequeue, capacity=capacity)
 
 
 

@@ -29,13 +29,13 @@ args = parser.parse_args()
 
 if not os.path.exists(args.model_dir):
     os.makedirs(args.model_dir)
-print(args.batch_size)
+
+# BUILD THE GRAPH
 global_step = tf.get_variable('global_step', [], initializer=tf.constant_initializer(0), trainable=False)
 data = DataQueue(args.dataset, args.epochs, args.batch_size, args.image_size)
 
 model = tf.make_template('model', model)
 prior_logits, conditioning_logits = model(data.lr_images, data.hr_images)
-print(data.hr_images)
 loss1 = loss_(prior_logits + conditioning_logits, data.hr_images)
 loss2 = loss_(conditioning_logits, data.hr_images)
 loss3 = loss_(prior_logits, data.hr_images)
@@ -53,6 +53,8 @@ learning_rate = tf.train.exponential_decay(lr_placeholder, global_step, 500000, 
 opt = tf.train.AdamOptimizer(learning_rate).minimize(loss, global_step)
 
 summary_op = tf.summary.merge_all()
+
+# EVALUATE GRAPH
 
 run_config = tf.ConfigProto()
 run_config.gpu_options.allow_growth = True
@@ -73,8 +75,7 @@ with tf.Session(config=run_config) as sess:
             _, loss_ = sess.run([opt, loss], {lr_placeholder: args.lr})
             t2 = time.time()
 
-            print("Step {}, loss={:.2f}, ({:.1f} examples/sec; {:.3f} sec/batch)".format(iterations,
-                                                                                            loss_, args.batch_size / (t2 - t1), (t2 - t1)))
+            print("Step {}, loss={:.2f}, ({:.1f} examples/sec; {:.3f} sec/batch)".format(iterations, loss_, args.batch_size / (t2 - t1), (t2 - t1)))
             # summarize model
             if iterations % 10 == 0:
                 summary_str = sess.run(summary_op)

@@ -9,8 +9,6 @@ import tensorflow as tf
 
 from layers import *
 
-FLAGS = tf.app.flags.FLAGS
-
 
 def model(lr_images, hr_images):
 

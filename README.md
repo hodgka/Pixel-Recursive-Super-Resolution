@@ -17,10 +17,11 @@ Tensorflow implementation of [Pixel Recursive Super Resolution.](https://arxiv.o
     more photo realistic than a strong L2 regression baseline.
 
 ## Requirements
-* Python 2/3
-* Numpy 1.12.0
-* SkImage 0.12.3
+* Python 3.6
+* Numpy 
+* SkImage 
 * Tensorflow 1.0
+* Scikit-image
 
 ## Installing / Getting started
 ```shell
@@ -28,6 +29,8 @@ git clone https://github.com/hodgka/Pixel-Recursive-Super-Resolution
 cd Pixel-Recursive-Super-Resolution
 mkdir data
 ln -s /path/to/CelebA/train
+pip install -r requirements.txt
+python main.py
 
 ```
 
