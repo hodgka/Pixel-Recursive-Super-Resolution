@@ -26,17 +26,19 @@ Tensorflow implementation of [Pixel Recursive Super Resolution.](https://arxiv.o
 ```shell
 git clone https://github.com/hodgka/Pixel-Recursive-Super-Resolution
 cd Pixel-Recursive-Super-Resolution
+mkdir data
+ln -s /path/to/CelebA/train
 
 ```
 
-# Useage
+# Usage
 ` python main.py [--options]`
 
  option | default | description
 --- | --- | ---
-dataset_dir | dataset | Path to dataset
+dataset_dir | CelebA | Path to dataset
 model_dir | models | Output folder where models are dumped
-image_size | 8 | Size of downsampled images in pixels
+image_size | 128 | Size of downsampled images in pixels
 iterations | 2e5 | Number of iterations to train for
 batch_size | 32 | Number of samples per batch
 learning_rate | 4e-4 | Learning rate

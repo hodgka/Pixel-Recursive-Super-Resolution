@@ -1,4 +1,4 @@
-dataset/
+data/
 models/
 samples/
 *.pyc
