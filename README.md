@@ -41,8 +41,8 @@ python main.py
 --- | --- | ---
 dataset_dir | CelebA | Path to dataset
 model_dir | models | Output folder where models are dumped
-image_size | 128 | Size of downsampled images in pixels
+image_size | 32 | Size of downsampled images in pixels
 iterations | 2e5 | Number of iterations to train for
 batch_size | 32 | Number of samples per batch
 learning_rate | 4e-4 | Learning rate
-B | 8 | Size of Resnet blocks to use
+B | 6 | Size of Resnet blocks to use
